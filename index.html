@@ -161,13 +161,20 @@ svg.anglefig{width:100%;height:auto;background:var(--paper);border:1px solid var
 .bc-head .note{font-weight:400;color:var(--ink-3);font-size:12px}
 .bc-row{display:grid;grid-template-columns:88px 1fr 122px;align-items:center;gap:12px;margin-bottom:7px;font-size:13px}
 .bc-row .w{font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bc-row .track{height:22px;background:#F2EFE9;border:1px solid #EAE5DC}
+.bc-row .track{height:22px;background:#F4F1EB;border:1px solid #E7E2D8;
+  background-image:repeating-linear-gradient(90deg,#E2DCD0 0 1px,transparent 1px 25%)}
 .bc-row .fill{display:block;height:100%;background:var(--sky);min-width:3px}
 .bc-row:first-of-type .fill{background:var(--brick)}
+.bc-row.rest .fill{background:#C7C1B5}
+.bc-row.rest .w{color:var(--ink-3);font-weight:500}
+.bc-axis{display:grid;grid-template-columns:88px 1fr 122px;gap:12px;margin-top:5px}
+.bc-axis .ticks{display:flex;justify-content:space-between;font-family:var(--mono);
+  font-size:10.5px;color:var(--ink-3)}
+.bc-axis .ticks i{font-style:normal}
 .bc-row .num{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
 .bc-row .num b{color:var(--ink);font-size:13px}
 .bc-total{font-size:12px;color:var(--ink-3);margin-top:11px;padding-top:10px;border-top:1px solid var(--line);line-height:1.9}
-@media(max-width:520px){.bc-row{grid-template-columns:66px 1fr 100px;gap:8px}}
+@media(max-width:520px){.bc-row,.bc-axis{grid-template-columns:66px 1fr 100px;gap:8px}}
 
 .sent{margin-top:20px;border:1px solid var(--line);background:#FCFBF8;padding:15px 17px}
 .sent-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -590,8 +597,10 @@ function renderResult(R){
              : c>=0.3?{cls:'tag-hi',t:'꽤 비슷한 리뷰',p:'핵심 단어가 겹칩니다. 두 벡터가 어느 정도 같은 쪽을 향합니다.'}
              : c>=0.1?{cls:'tag-mid',t:'조금 비슷한 리뷰',p:'겹치는 단어가 적거나, 겹친 단어가 흔해서 가중치가 낮습니다.'}
              : {cls:'tag-lo',t:'거의 다른 리뷰',p:'공유하는 단어가 없거나 거의 없어 두 벡터가 직각에 가깝습니다.'};
-  const top=R.rows.filter(r=>r.a>0&&r.b>0).map(r=>({w:r.w,v:r.a*r.b})).sort((x,y)=>y.v-x.v).slice(0,6);
-  const mx=top.length?top[0].v:1;
+  const contrib=R.rows.filter(r=>r.a>0&&r.b>0).map(r=>({w:r.w,v:r.a*r.b})).sort((x,y)=>y.v-x.v);
+  const TOPN=6, top=contrib.slice(0,TOPN);
+  const restN=contrib.length-TOPN, restV=contrib.slice(TOPN).reduce((s,c)=>s+c.v,0);
+  const pct=v=>R.dot>0 ? v/R.dot*100 : 0;   // 분자(내적) 전체를 100%로 본 비율
 
   document.getElementById('bodyR').innerHTML=`
     <div class="verdict">
@@ -615,13 +624,19 @@ function renderResult(R){
 
     ${top.length?`<div class="barchart">
       <div class="bc-head">유사도를 끌어올린 단어
-        <span class="note">내적의 각 항 ${tex('a_i b_i')} 크기 · 합계 ${fmt(R.dot,3)}</span></div>
+        <span class="note">분자(내적) ${fmt(R.dot,3)}을 100%로 본 항별 몫 ${tex('a_i b_i')}</span></div>
       ${top.map(t=>`<div class="bc-row">
         <span class="w">${escapeHtml(t.w)}</span>
-        <span class="track"><span class="fill" style="width:${Math.max(1.5,(t.v/mx)*100)}%"></span></span>
-        <span class="num"><b>${fmt(t.v,2)}</b> · ${(t.v/R.dot*100).toFixed(1)}%</span></div>`).join('')}
-      <div class="bc-total">막대 길이는 ${tex('a_i\\times b_i')} 값에 비례합니다.
-        오른쪽 백분율은 그 단어가 분자(내적 ${fmt(R.dot,3)})에서 차지하는 몫입니다.</div>
+        <span class="track"><span class="fill" style="width:${pct(t.v).toFixed(2)}%"></span></span>
+        <span class="num"><b>${pct(t.v).toFixed(1)}%</b> · ${fmt(t.v,2)}</span></div>`).join('')}
+      ${restN>0?`<div class="bc-row rest">
+        <span class="w">그 밖 ${restN}개</span>
+        <span class="track"><span class="fill" style="width:${pct(restV).toFixed(2)}%"></span></span>
+        <span class="num"><b>${pct(restV).toFixed(1)}%</b> · ${fmt(restV,2)}</span></div>`:''}
+      <div class="bc-axis"><span></span>
+        <span class="ticks"><i>0%</i><i>25%</i><i>50%</i><i>75%</i><i>100%</i></span><span></span></div>
+      <div class="bc-total">막대 전체 길이가 분자 <b>${fmt(R.dot,3)}</b>(=100%)이고,
+        각 막대는 그 단어의 ${tex('a_i\\times b_i')}가 차지하는 몫입니다. 모두 더하면 100%가 됩니다.</div>
     </div>`:''}
 
     <div class="footnote">
