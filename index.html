@@ -44,6 +44,8 @@ h1.title .hl{color:var(--brick)}
 
 .tabs{display:flex;gap:6px;position:sticky;top:0;z-index:30;background:var(--board);
   padding:14px 0 12px;border-bottom:2px solid var(--ink);overflow-x:auto}
+/* KaTeX가 넣는 숨김 MathML이 스크롤 영역 밖으로 삐져나가지 않도록 */
+.katex-mathml{left:0}
 .tab{display:flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid var(--line);
   background:var(--paper);font-family:var(--sans);font-size:13px;font-weight:700;color:var(--ink-3);
   cursor:pointer;white-space:nowrap;transition:.15s;flex:none}
@@ -111,10 +113,12 @@ textarea::placeholder{color:#B9B2A6}
 .tok.kept{background:var(--brick-soft);border-color:#EBD5C8;color:var(--brick);font-weight:600}
 .tok.dropped{background:var(--mid-soft);border-color:#DEDEDE;color:#9A9A9A;text-decoration:line-through}
 .tok.raw{background:#FAF8F4;border-color:var(--line);color:var(--ink-2)}
-.setline{background:#FAF8F4;border:1px solid var(--line);padding:12px 15px;overflow-x:auto}
+.setline{background:#FAF8F4;border:1px solid var(--line);padding:12px 15px;overflow-x:auto;position:relative}
+.align-tbl{background:#FBFAF3;border-color:#E6E2D2;padding:16px 15px}
+.align-tbl .katex .mord.text{font-weight:600}
 .quote{background:#FAF8F4;border:1px solid var(--line);padding:12px 14px;font-size:15px}
 
-.table-scroll{overflow-x:auto;margin-top:10px;border:1px solid var(--line)}
+.table-scroll{overflow-x:auto;margin-top:10px;border:1px solid var(--line);position:relative}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:620px}
 th{background:#2E4A6E;color:#fff;font-weight:700;font-size:12px;padding:10px 12px;text-align:center;white-space:nowrap}
 th:first-child{text-align:left}
@@ -130,9 +134,9 @@ tbody tr.dim td{color:var(--ink-3)}
 .legend{font-size:12px;color:var(--ink-3);margin-top:9px;line-height:1.8}
 .legend b{color:var(--brick)}
 
-.mathblock{background:#FAF8F4;border-left:3px solid var(--brick);padding:13px 17px;overflow-x:auto}
+.mathblock{background:#FAF8F4;border-left:3px solid var(--brick);padding:13px 17px;overflow-x:auto;position:relative}
 .mathblock .lbl{font-weight:700;color:var(--brick);font-size:12px;display:block;margin-bottom:5px}
-.mathline{padding:2px 0;overflow-x:auto}
+.mathline{padding:2px 0;overflow-x:auto;position:relative}
 .texfallback{font-family:var(--mono);font-size:13px;color:var(--ink-2)}
 .katex{font-size:1.05em}
 .katex .mord.text,.katex .text{font-family:var(--sans)}
@@ -152,12 +156,18 @@ tbody tr.dim td{color:var(--ink-3)}
 .substat .v{font-family:var(--mono);font-size:17px;font-weight:600}
 svg.anglefig{width:100%;height:auto;background:var(--paper);border:1px solid var(--line)}
 
-.shared-words{margin-top:20px}
-.sw-row{display:flex;align-items:center;gap:12px;margin-bottom:7px;font-size:13px}
-.sw-row .w{width:92px;font-weight:600;flex:none}
-.sw-row .track{flex:1;height:9px;background:var(--mid-soft);overflow:hidden}
-.sw-row .fill{height:100%;background:var(--sky)}
-.sw-row .val{font-family:var(--mono);font-size:12px;color:var(--ink-3);width:44px;text-align:right}
+.barchart{margin-top:22px}
+.bc-head{display:flex;align-items:baseline;gap:10px;font-size:13px;font-weight:700;margin-bottom:12px;flex-wrap:wrap}
+.bc-head .note{font-weight:400;color:var(--ink-3);font-size:12px}
+.bc-row{display:grid;grid-template-columns:88px 1fr 122px;align-items:center;gap:12px;margin-bottom:7px;font-size:13px}
+.bc-row .w{font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bc-row .track{height:22px;background:#F2EFE9;border:1px solid #EAE5DC}
+.bc-row .fill{display:block;height:100%;background:var(--sky);min-width:3px}
+.bc-row:first-of-type .fill{background:var(--brick)}
+.bc-row .num{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.bc-row .num b{color:var(--ink);font-size:13px}
+.bc-total{font-size:12px;color:var(--ink-3);margin-top:11px;padding-top:10px;border-top:1px solid var(--line);line-height:1.9}
+@media(max-width:520px){.bc-row{grid-template-columns:66px 1fr 100px;gap:8px}}
 
 .sent{margin-top:20px;border:1px solid var(--line);background:#FCFBF8;padding:15px 17px}
 .sent-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -404,9 +414,12 @@ function buildExamples(boxId,targetId){
 
 /* ===================== 리뷰 한 편 ===================== */
 function renderDoc(doc,label,mountId){
+  /* 리뷰에 처음 나온 순서 그대로 둡니다. 정렬하면 두 벡터의 좌표축 순서가
+     서로 달라져 학생이 성분끼리 짝지어 볼 때 혼동이 생깁니다. */
   const rows=doc.vocab.map(w=>({w, tf: tfMode==='binary'?1:doc.tf.get(w),
-      df:dfOf(w), idf:idfOf(w), tfidf:weight(doc,w)})).sort((a,b)=>b.tfidf-a.tfidf);
-  const maxW=Math.max(...rows.map(r=>r.tfidf),1e-4), ex=rows[0];
+      df:dfOf(w), idf:idfOf(w), tfidf:weight(doc,w)}));
+  const maxW=Math.max(...rows.map(r=>r.tfidf),1e-4);
+  const ex=rows.reduce((a,b)=>b.tfidf>a.tfidf?b:a, rows[0]);
 
   document.getElementById(mountId).innerHTML=`
     <div class="quote">“${escapeHtml(doc.raw)}”</div>
@@ -460,8 +473,10 @@ function renderDoc(doc,label,mountId){
     </div>
 
     <div class="stage">
-      <div class="stage-title">5. 완성된 TF-IDF 벡터 <span class="note">가중치가 큰 단어 순으로 정렬</span></div>
+      <div class="stage-title">5. 완성된 TF-IDF 벡터 <span class="note">단어집합과 같은 순서(리뷰에 나온 순서)</span></div>
       <div class="setline">${tex('\\vec{'+label.toLowerCase()+'}=('+rows.map(r=>fmt(r.tfidf,2)).join(',\\ ')+')')}</div>
+      <div class="legend">성분의 순서는 유사도 값에 영향을 주지 않습니다. 다만 두 리뷰를 비교할 때는
+        <b>양쪽 벡터가 같은 순서의 좌표축</b>을 써야 하므로, 5단계에서 두 단어집합을 합쳐 순서를 다시 맞춥니다.</div>
     </div>
 
     ${sentimentCard(doc)}`;
@@ -498,22 +513,39 @@ function sentimentCard(doc){
 function renderCosine(){
   const union=[...new Set([...docA.vocab,...docB.vocab])];
   const shared=union.filter(w=>docA.tf.has(w)&&docB.tf.has(w));
-  const rows=union.map(w=>({w,a:weight(docA,w),b:weight(docB,w)}))
-    .sort((x,y)=>(y.a*y.b)-(x.a*x.b)||(y.a+y.b)-(x.a+x.b));
+  const rows=union.map(w=>({w,a:weight(docA,w),b:weight(docB,w)}));
   const dot=rows.reduce((s,r)=>s+r.a*r.b,0);
   const na=Math.sqrt(rows.reduce((s,r)=>s+r.a*r.a,0));
   const nb=Math.sqrt(rows.reduce((s,r)=>s+r.b*r.b,0));
   const cos=(na&&nb)?dot/(na*nb):0;
   const euc=Math.sqrt(rows.reduce((s,r)=>s+(r.a-r.b)**2,0));
   const theta=Math.acos(Math.min(1,Math.max(-1,cos)))*180/Math.PI;
-  const terms=rows.filter(r=>r.a>0&&r.b>0), cut=6;
-  const dotTex=terms.length
-    ? terms.slice(0,cut).map(t=>fmt(t.a,2)+'\\times'+fmt(t.b,2)).join('+')+(terms.length>cut?'+\\cdots':'')
-    : '0';
+  /* 교과서처럼 전체집합 U의 축 순서대로 0까지 포함해 모두 전개합니다 */
+  const CUT=10, over=rows.length>CUT, showRows=over?rows.slice(0,CUT):rows;
+  const tail=over?'+\\cdots':'';
+  const dotTex=showRows.map(t=>fmt(t.a,2)+'\\times'+fmt(t.b,2)).join('+')+tail;
+  const sqTex=k=>showRows.map(t=>fmt(t[k],2)+'^{2}').join('+')+tail;
+  const colspec='r|'+'c'.repeat(rows.length);
+  const alignTex='\\begin{array}{'+colspec+'}'
+    +'U&'+rows.map(r=>T(r.w)).join('&')+'\\\\\\hline '
+    +'\\vec{a}&'+rows.map(r=>fmt(r.a,2)).join('&')+'\\\\'
+    +'\\vec{b}&'+rows.map(r=>fmt(r.b,2)).join('&')
+    +'\\end{array}';
 
   document.getElementById('bodyC').innerHTML=`
-    <p style="color:var(--ink-2);font-size:14px">두 리뷰에 나온 단어를 모두 합쳐 <b>같은 순서의 좌표축</b>으로 놓아야 비교할 수 있습니다.
-      전체 ${union.length}개 축 가운데 두 리뷰가 <b>함께 가진 단어는 ${shared.length}개</b>입니다.</p>
+    <p style="color:var(--ink-2);font-size:14px">2·4단계에서 만든 두 벡터는 각자의 단어만 갖고 있어 차원이 다릅니다.
+      비교하려면 두 단어집합을 합쳐 <b>전체집합 ${tex('U')}</b>를 만들고,
+      한쪽에만 있는 단어 자리에는 <b>0을 채워</b> 같은 순서·같은 차원으로 맞춰야 합니다.</p>
+
+    <div class="stage">
+      <div class="stage-title"><span class="arrow">▼</span>1. 좌표축 맞추기
+        <span class="note">리뷰 A의 단어를 먼저 놓고, B에만 있는 단어를 뒤에 붙였습니다 · ${union.length}차원</span></div>
+      <div class="setline align-tbl">${tex(alignTex)}</div>
+      <div class="legend">전체 ${union.length}개 축 가운데 두 리뷰가 <b>함께 가진 단어는 ${shared.length}개</b>입니다.
+        한쪽이 0인 축은 곱이 <b>${tex('0\\times(\\text{어떤 수})=0')}</b>이 되어 분자에 아무것도 보태지 못합니다.</div>
+    </div>
+
+    <div class="stage-title" style="margin-top:20px"><span class="arrow">▼</span>2. 축마다 곱하고 제곱하기</div>
     <div class="table-scroll">
       <table>
         <thead><tr><th>단어(좌표축)</th>
@@ -535,20 +567,20 @@ function renderCosine(){
     </div>
 
     <div class="stage">
-      <div class="stage-title"><span class="arrow">▼</span>분자 — 두 벡터의 내적</div>
+      <div class="stage-title"><span class="arrow">▼</span>3. 분자 — 두 벡터의 내적 <span class="note">0인 항까지 그대로 전개</span></div>
       <div class="mathline">${tex('\\vec{a}\\cdot\\vec{b}='+dotTex+'='+fmt(dot,4),true)}</div>
     </div>
     <div class="stage">
-      <div class="stage-title"><span class="arrow">▼</span>분모 — 두 벡터의 크기</div>
-      <div class="mathline">${tex('|\\vec{a}|=\\sqrt{'+fmt(na*na,4)+'}='+fmt(na,4),true)}</div>
-      <div class="mathline">${tex('|\\vec{b}|=\\sqrt{'+fmt(nb*nb,4)+'}='+fmt(nb,4),true)}</div>
+      <div class="stage-title"><span class="arrow">▼</span>4. 분모 — 두 벡터의 크기</div>
+      <div class="mathline">${tex('|\\vec{a}|=\\sqrt{'+sqTex('a')+'}=\\sqrt{'+fmt(na*na,4)+'}='+fmt(na,4),true)}</div>
+      <div class="mathline">${tex('|\\vec{b}|=\\sqrt{'+sqTex('b')+'}=\\sqrt{'+fmt(nb*nb,4)+'}='+fmt(nb,4),true)}</div>
       <div class="mathline">${tex('|\\vec{a}|\\,|\\vec{b}|='+fmt(na*nb,4),true)}</div>
     </div>
     <div class="stage">
-      <div class="stage-title"><span class="arrow">▼</span>나누기</div>
+      <div class="stage-title"><span class="arrow">▼</span>5. 나누기</div>
       <div class="mathline">${tex('C(\\vec{a},\\vec{b})=\\dfrac{'+fmt(dot,4)+'}{'+fmt(na*nb,4)+'}=\\mathbf{'+fmt(cos,4)+'}',true)}</div>
     </div>`;
-  return {cos,theta,euc,shared,rows};
+  return {cos,theta,euc,shared,rows,dot};
 }
 
 /* ===================== 결과 ===================== */
@@ -581,11 +613,16 @@ function renderResult(R){
       <div class="mathline">${tex('d(\\vec{a},\\vec{b})=\\sqrt{\\textstyle\\sum_i (a_i-b_i)^{2}}='+fmt(R.euc,3))}</div>
     </div>
 
-    ${top.length?`<div class="shared-words">
-      <div class="stage-title">유사도를 끌어올린 단어</div>
-      ${top.map(t=>`<div class="sw-row"><span class="w">${escapeHtml(t.w)}</span>
-        <span class="track"><span class="fill" style="width:${(t.v/mx)*100}%"></span></span>
-        <span class="val">${fmt(t.v,2)}</span></div>`).join('')}</div>`:''}
+    ${top.length?`<div class="barchart">
+      <div class="bc-head">유사도를 끌어올린 단어
+        <span class="note">내적의 각 항 ${tex('a_i b_i')} 크기 · 합계 ${fmt(R.dot,3)}</span></div>
+      ${top.map(t=>`<div class="bc-row">
+        <span class="w">${escapeHtml(t.w)}</span>
+        <span class="track"><span class="fill" style="width:${Math.max(1.5,(t.v/mx)*100)}%"></span></span>
+        <span class="num"><b>${fmt(t.v,2)}</b> · ${(t.v/R.dot*100).toFixed(1)}%</span></div>`).join('')}
+      <div class="bc-total">막대 길이는 ${tex('a_i\\times b_i')} 값에 비례합니다.
+        오른쪽 백분율은 그 단어가 분자(내적 ${fmt(R.dot,3)})에서 차지하는 몫입니다.</div>
+    </div>`:''}
 
     <div class="footnote">
       <b>읽는 법</b> — 코사인 유사도는 두 벡터가 이루는 각의 코사인값입니다.
